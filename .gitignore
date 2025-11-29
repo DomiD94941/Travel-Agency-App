@@ -1,2 +1,46 @@
-# Envriomental files 
+# Environment files
 .env
+.env.local
+.env.*.local
+
+# Oracle wallets / certificates / keys
+wallet*/
+adb_wallet*/
+tns_admin*/
+*.p12
+*.sso
+*.jks
+*.pem
+*.key
+cwallet.sso
+ewallet.p12
+sqlnet.ora
+tnsnames.ora
+ojdbc.properties
+
+# Local database data (Docker volumes)
+adb_data/
+db_data/
+data/
+u01/
+*.dbf
+
+# Logs / runtime output / debugging files
+*.log
+*.out
+logs/
+docker-logs/
+
+# SQLcl installers / temp downloads
+sqlcl-latest.zip
+sqlcl-*.zip
+*.tmp
+*.bak
+
+# Editors / OS generated files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
