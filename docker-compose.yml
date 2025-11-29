@@ -1,0 +1,48 @@
+services:
+  adbfree:
+    container_name: app-database
+    image: ghcr.io/oracle/adb-free:latest-26ai
+    environment:
+      WORKLOAD_TYPE: ${WORKLOAD_TYPE}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      WALLET_PASSWORD: ${WALLET_PASSWORD}
+    ports:
+      - "${DB_PORT}:1522"
+      - "${ORDS_PORT}:8443"
+    volumes:
+      - adb_data:/u01
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    restart: unless-stopped
+
+  sqlcl:
+    build: ./sqlcl
+    depends_on:
+      - app-database
+    volumes:
+      - ./apex_exports:/exports
+
+  importer:
+    container_name: importer
+    build: ./sqlcl
+    depends_on:
+      - app-database
+    volumes:
+      - ./apex_exports:/exports:ro
+      - ./scripts:/scripts:ro
+      - ./database_scripts:/db:ro
+    environment:
+      APP_ID: "${APP_ID}"
+      DB_CONN: "${DB_CONN}"
+      TARGET_WORKSPACE: "${TARGET_WORKSPACE}"
+      TARGET_SCHEMA: "${TARGET_SCHEMA}"
+      TARGET_SCHEMA_PASS: "${TARGET_SCHEMA_PASS}"
+      DEV_USER: "${DEV_USER}"
+      DEV_PASS: "${DEV_PASS}"
+    entrypoint: ["/bin/bash", "/scripts/wait_for_import.sh"]
+    restart: "no"
+
+volumes:
+  adb_data: {}
