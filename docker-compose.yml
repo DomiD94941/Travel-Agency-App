@@ -20,7 +20,7 @@ services:
   sqlcl:
     build: ./sqlcl
     depends_on:
-      - app-database
+      - adbfree
     volumes:
       - ./apex_exports:/exports
 
@@ -28,20 +28,24 @@ services:
     container_name: importer
     build: ./sqlcl
     depends_on:
-      - app-database
+      - adbfree
     volumes:
       - ./apex_exports:/exports:ro
       - ./scripts:/scripts:ro
       - ./database_scripts:/db:ro
     environment:
-      APP_ID: "${APP_ID}"
-      DB_CONN: "${DB_CONN}"
-      TARGET_WORKSPACE: "${TARGET_WORKSPACE}"
-      TARGET_SCHEMA: "${TARGET_SCHEMA}"
-      TARGET_SCHEMA_PASS: "${TARGET_SCHEMA_PASS}"
-      DEV_USER: "${DEV_USER}"
-      DEV_PASS: "${DEV_PASS}"
-    entrypoint: ["/bin/bash", "/scripts/wait_for_import.sh"]
+        APP_ID: "${APP_ID}"
+        DB_CONN: "${DB_CONN}"
+        TARGET_WORKSPACE: "${TARGET_WORKSPACE}"
+        TARGET_SCHEMA: "${TARGET_SCHEMA}"
+        TARGET_SCHEMA_PASS: "${TARGET_SCHEMA_PASS}"
+        DEV_USER: "${DEV_USER}"
+        DEV_PASS: "${DEV_PASS}"
+        ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+        DB_HOST: "${DB_HOST}"
+        DB_SERVICE_NAME: "${DB_SERVICE_NAME}"
+        DB_PORT_INTERNAL: "${DB_PORT_INTERNAL}"
+    entrypoint: ["/usr/bin/env", "bash", "/scripts/init-import.sh"]
     restart: "no"
 
 volumes:

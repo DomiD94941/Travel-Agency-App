@@ -21,14 +21,13 @@ begin
     exception
       when others then
         if sqlcode = -28007 then
-          null; -- password reuse blocked, keep current one
+          null;
         else
           raise;
         end if;
     end;
   end if;
 
-  -- always unlock
   begin
     execute immediate 'alter user '||l_schema||' account unlock';
   exception when others then null;
@@ -44,7 +43,7 @@ begin
   end;
 end;
 /
-prompt === Force Builder Authentication to Database Accounts (instance-level) ===
+prompt === Force Builder Authentication to Database Accounts ===
 
 begin
   apex_instance_admin.set_parameter(
@@ -53,14 +52,13 @@ begin
   );
 end;
 /
-prompt === Create/Update Workspace &TARGET_WORKSPACE and schema developer user ===
+prompt === Create/Update Workspace &TARGET_WORKSPACE ===
 
 declare
   l_ws_id   number;
   l_user_id number;
   l_schema  varchar2(128) := upper('&TARGET_SCHEMA');
 begin
-  -- INTERNAL context for instance ops
   begin
     apex_util.set_security_group_id(
       apex_util.find_security_group_id(p_workspace => 'INTERNAL')
@@ -68,7 +66,6 @@ begin
   exception when others then null;
   end;
 
-  -- workspace find/create
   begin
     l_ws_id := apex_util.find_security_group_id(
                 p_workspace => upper('&TARGET_WORKSPACE'));
@@ -87,7 +84,6 @@ begin
 
   apex_util.set_security_group_id(l_ws_id);
 
-  -- make sure APEX user with same name as db user exists
   begin
     l_user_id := apex_util.get_user_id(p_username => l_schema);
   exception when others then
@@ -106,9 +102,8 @@ begin
   else
     apex_util.edit_user(
       p_user_id         => l_user_id,
-      p_user_name       => l_schema, -- required in APEX 24.2
+      p_user_name       => l_schema,
       p_web_password    => '&TARGET_SCHEMA_PASS',
-      p_new_password    => '&TARGET_SCHEMA_PASS',
       p_email_address   => 'ta_app@example.com',
       p_default_schema  => l_schema,
       p_developer_roles => 'ADMIN:CREATE:DATA_LOADER:EDIT:HELP:MONITOR:SQL',
@@ -120,4 +115,5 @@ begin
   commit;
 end;
 /
+
 prompt === DONE ===
