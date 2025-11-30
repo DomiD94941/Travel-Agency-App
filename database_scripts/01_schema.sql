@@ -2,16 +2,16 @@ WHENEVER SQLERROR EXIT SQL.SQLCODE
 ALTER SESSION SET CURRENT_SCHEMA = TA_APP;
 
 BEGIN
-    FOR s IN (
-        SELECT sequence_name 
-        FROM all_sequences
-        WHERE sequence_owner = 'TA_APP'
-    ) LOOP
-        BEGIN
-            EXECUTE IMMEDIATE 'DROP SEQUENCE TA_APP.'||s.sequence_name;
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
-    END LOOP;
+  FOR s IN (
+    SELECT sequence_name 
+    FROM all_sequences
+    WHERE sequence_owner = UPPER('&TARGET_SCHEMA')
+  ) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP SEQUENCE &TARGET_SCHEMA.' || s.sequence_name;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
 END;
 /
 
@@ -19,10 +19,11 @@ BEGIN
     FOR t IN (
         SELECT table_name
         FROM all_tables
-        WHERE owner = 'TA_APP'
+        WHERE owner = UPPER('&TARGET_SCHEMA')
     ) LOOP
         BEGIN
-            EXECUTE IMMEDIATE 'DROP TABLE TA_APP.'||t.table_name||' CASCADE CONSTRAINTS';
+            EXECUTE IMMEDIATE
+                'DROP TABLE ' || '&TARGET_SCHEMA' || '.' || t.table_name || ' CASCADE CONSTRAINTS';
         EXCEPTION WHEN OTHERS THEN NULL;
         END;
     END LOOP;
