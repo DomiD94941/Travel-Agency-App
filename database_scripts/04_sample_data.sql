@@ -17,13 +17,13 @@ VALUES ('Laura','White','laura@example.com','332211445','Poland');
 INSERT INTO clients (first_name, last_name, email, phone, country)
 VALUES ('David','Black','david@example.com','778899221','UK');
 
-INSERT INTO guides (first_name, last_name, city, availability, rating)
+INSERT INTO guides (first_name, last_name, city, availability_status, rating)
 VALUES ('Michael','Ford','Berlin','AVAILABLE',4.7);
 
-INSERT INTO guides (first_name, last_name, city, availability, rating)
+INSERT INTO guides (first_name, last_name, city, availability_status, rating)
 VALUES ('Maria','Lopez','Paris','AVAILABLE',4.8);
 
-INSERT INTO guides (first_name, last_name, city, availability, rating)
+INSERT INTO guides (first_name, last_name, city, availability_status, rating)
 VALUES ('James','Miller','Munich','AVAILABLE',4.6);
 
 INSERT INTO routes (city_start, city_target, distance_km)

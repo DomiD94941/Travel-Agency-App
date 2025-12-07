@@ -264,7 +264,7 @@ AFTER INSERT ON guide_assignments
 FOR EACH ROW
 BEGIN
     UPDATE guides
-    SET availability='ASSIGNED'
+    SET availability_status='ASSIGNED'
     WHERE guide_id=:new.guide_id;
 END;
 /

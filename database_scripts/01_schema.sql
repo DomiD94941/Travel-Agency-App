@@ -54,6 +54,8 @@ CREATE SEQUENCE seq_trip_packages START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE seq_trip_package_hotels START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE seq_trip_package_attractions START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE seq_trip_package_transport_modes START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE seq_transfers START WITH 1 INCREMENT BY 1 NOCACHE;
+
 
 CREATE TABLE clients (
     client_id      NUMBER PRIMARY KEY,
@@ -69,7 +71,7 @@ CREATE TABLE guides (
     first_name     VARCHAR2(50),
     last_name      VARCHAR2(50),
     city           VARCHAR2(100),
-    availability   VARCHAR2(20),
+    availability_status   VARCHAR2(20),
     rating         NUMBER(3,1)
 );
 
@@ -236,7 +238,9 @@ CREATE TABLE accommodation (
     room_id          NUMBER REFERENCES hotel_rooms(room_id),
     room_type        VARCHAR2(50),
     guests_count     NUMBER,
-    total_price      NUMBER
+    total_price      NUMBER,
+    check_in  DATE,
+    check_out DATE
 );
 
 CREATE TABLE room_assignments (
@@ -268,10 +272,23 @@ CREATE TABLE trip_packages (
     base_budget    NUMBER
 );
 
+CREATE TABLE transfers (
+    transfer_id     NUMBER PRIMARY KEY,
+    reservation_id  NUMBER REFERENCES reservations(reservation_id),
+    description     VARCHAR2(400)
+);
+
+
 CREATE TABLE trip_package_hotels (
     id          NUMBER PRIMARY KEY,
     package_id  NUMBER REFERENCES trip_packages(package_id),
     hotel_id    NUMBER REFERENCES hotels(hotel_id)
+);
+
+CREATE TABLE reservation_attractions (
+    id               NUMBER PRIMARY KEY,
+    reservation_id   NUMBER REFERENCES reservations(reservation_id),
+    attraction_id    NUMBER REFERENCES attractions(attraction_id)
 );
 
 CREATE TABLE trip_package_attractions (
@@ -285,4 +302,5 @@ CREATE TABLE trip_package_transport_modes (
     package_id     NUMBER REFERENCES trip_packages(package_id),
     transport_mode VARCHAR2(50)
 );
+
 

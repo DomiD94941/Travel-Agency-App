@@ -11,134 +11,101 @@ END;
 /
 
 
+-- ##########################################################################
+-- APEX helper constants: collection names used by the APEX application
+-- ##########################################################################
+
+CREATE OR REPLACE PACKAGE travel_agency_apex_constants AS
+  gc_coll_tmp_participants CONSTANT VARCHAR2(30) := 'APEX_COLLECTIONS_TMP_PARTICIPANTS';
+  gc_coll_selected_attr    CONSTANT VARCHAR2(30) := 'APEX_COLLECTIONS_SELECTED_ATTRACTIONS';
+END travel_agency_apex_constants;
+/
 
 -- PACKAGE HEADER: travel_agency_operations
 
 CREATE OR REPLACE PACKAGE travel_agency_operations AS
 
   PROCEDURE create_reservation(
-      p_client_id       NUMBER,
-      p_trip_type       VARCHAR2,
-      p_date_from       DATE,
-      p_date_to         DATE,
-      p_city_start      VARCHAR2,
-      p_city_target     VARCHAR2,
-      p_budget          NUMBER,
-      p_currency        VARCHAR2,
-      p_transport_pref  VARCHAR2 DEFAULT 'ANY',
-      p_room_pref       VARCHAR2 DEFAULT 'ANY',
-      p_reservation_id  OUT NUMBER
+      p_client_id       IN reservations.client_id%TYPE,
+      p_trip_type       IN reservations.trip_type%TYPE,
+      p_date_from       IN reservations.date_from%TYPE,
+      p_date_to         IN reservations.date_to%TYPE,
+      p_city_start      IN reservations.city_start%TYPE,
+      p_city_target     IN reservations.city_target%TYPE,
+      p_budget_amount   IN reservations.budget_amount%TYPE,
+      p_budget_currency IN reservations.budget_currency%TYPE,
+      p_transport_pref  IN reservations.transport_pref%TYPE,
+      p_room_pref       IN reservations.room_pref%TYPE,
+      p_reservation_id  OUT reservations.reservation_id%TYPE
   );
 
   PROCEDURE add_participant(
-      p_reservation_id NUMBER,
-      p_first_name     VARCHAR2,
-      p_last_name      VARCHAR2,
-      p_birth_date     DATE,
-      p_relation       VARCHAR2
+      p_reservation_id IN participants.reservation_id%TYPE,
+      p_first_name     IN participants.first_name%TYPE,
+      p_last_name      IN participants.last_name%TYPE,
+      p_birth_date     IN participants.birth_date%TYPE,
+      p_relation       IN participants.relation_to_client%TYPE
   );
 
   PROCEDURE set_transport_pref(
-      p_participant_id NUMBER,
-      p_class          VARCHAR2,
-      p_seat           VARCHAR2 DEFAULT NULL,
-      p_meal           VARCHAR2 DEFAULT NULL,
-      p_cabin          VARCHAR2 DEFAULT NULL,
-      p_service        VARCHAR2 DEFAULT NULL
+      p_reservation_id IN reservations.reservation_id%TYPE,
+      p_preference     IN reservations.transport_pref%TYPE
   );
 
   PROCEDURE add_room_pref(
-      p_participant_id NUMBER,
-      p_preference     VARCHAR2,
-      p_value          VARCHAR2
+      p_reservation_id IN reservations.reservation_id%TYPE,
+      p_preference     IN reservations.room_pref%TYPE
   );
 
   PROCEDURE assign_transport(
-      p_reservation_id NUMBER,
-      p_allow_downgrade CHAR
+      p_reservation_id IN reservations.reservation_id%TYPE
   );
 
-  PROCEDURE assign_transport(p_reservation_id NUMBER);
+  PROCEDURE assign_rooms(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  );
 
-  PROCEDURE assign_rooms(p_reservation_id NUMBER);
+  PROCEDURE assign_guides(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  );
 
-  PROCEDURE generate_transfers(p_reservation_id NUMBER);
+  PROCEDURE generate_transfers(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  );
 
-  PROCEDURE assign_guides(p_reservation_id NUMBER);
+  PROCEDURE finalize_plan(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  );
 
-  PROCEDURE finalize_plan(p_reservation_id NUMBER);
+  PROCEDURE confirm_reservation(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  );
 
-  PROCEDURE confirm_reservation(p_reservation_id NUMBER);
-
-  PROCEDURE cancel_reservation(p_reservation_id NUMBER);
+  PROCEDURE cancel_reservation(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  );
 
 END travel_agency_operations;
 /
 
-
 -- PACKAGE HEADER: travel_agency_intelligence
-
-CREATE OR REPLACE PACKAGE travel_agency_intelligence AS
-
-  FUNCTION recommend_best_hotel(
-      p_city        VARCHAR2,
-      p_budget      NUMBER,
-      p_with_kids   BOOLEAN
-  ) RETURN VARCHAR2;
-
-  FUNCTION recommend_transport(
-      p_distance    NUMBER,
-      p_budget      NUMBER,
-      p_preference  VARCHAR2
-  ) RETURN VARCHAR2;
-
-  FUNCTION recommend_attractions(
-      p_city       VARCHAR2,
-      p_interests  VARCHAR2
-  ) RETURN SYS_REFCURSOR;
-
-  FUNCTION trip_summary(p_reservation_id NUMBER) RETURN CLOB;
-
-  FUNCTION loyalty_level(p_client_id NUMBER) RETURN VARCHAR2;
-
-  FUNCTION proposed_discount(p_client_id NUMBER) RETURN NUMBER;
-
-  FUNCTION estimated_cost(p_reservation_id NUMBER) RETURN NUMBER;
-
-  FUNCTION trip_value_index(p_reservation_id NUMBER) RETURN NUMBER;
-
-END travel_agency_intelligence;
-/
-
--- PACKAGE BODY: travel_agency_operations
 
 CREATE OR REPLACE PACKAGE BODY travel_agency_operations AS
 
--- create reservation
-
-PROCEDURE create_reservation(
-      p_client_id       NUMBER,
-      p_trip_type       VARCHAR2,
-      p_date_from       DATE,
-      p_date_to         DATE,
-      p_city_start      VARCHAR2,
-      p_city_target     VARCHAR2,
-      p_budget          NUMBER,
-      p_currency        VARCHAR2,
-      p_transport_pref  VARCHAR2 DEFAULT 'ANY',
-      p_room_pref       VARCHAR2 DEFAULT 'ANY',
-      p_reservation_id  OUT NUMBER
-) IS
-    v_cnt NUMBER;
-BEGIN
-    SELECT COUNT(*) INTO v_cnt
-    FROM clients
-    WHERE client_id = p_client_id;
-
-    IF v_cnt = 0 THEN
-        RAISE_APPLICATION_ERROR(-20001,'Client does not exist.');
-    END IF;
-
+  PROCEDURE create_reservation(
+      p_client_id       IN reservations.client_id%TYPE,
+      p_trip_type       IN reservations.trip_type%TYPE,
+      p_date_from       IN reservations.date_from%TYPE,
+      p_date_to         IN reservations.date_to%TYPE,
+      p_city_start      IN reservations.city_start%TYPE,
+      p_city_target     IN reservations.city_target%TYPE,
+      p_budget_amount   IN reservations.budget_amount%TYPE,
+      p_budget_currency IN reservations.budget_currency%TYPE,
+      p_transport_pref  IN reservations.transport_pref%TYPE,
+      p_room_pref       IN reservations.room_pref%TYPE,
+      p_reservation_id  OUT reservations.reservation_id%TYPE
+  ) IS
+  BEGIN
     IF p_date_from >= p_date_to THEN
         RAISE_APPLICATION_ERROR(-20002,'date_from must be before date_to.');
     END IF;
@@ -153,607 +120,323 @@ BEGIN
         seq_reservations.NEXTVAL,
         p_client_id, p_trip_type, p_date_from, p_date_to,
         p_city_start, p_city_target,
-        p_budget, p_currency,
-        'IN_PROGRESS',
-        UPPER(NVL(p_transport_pref,'ANY')),
-        UPPER(NVL(p_room_pref,'ANY'))
+        p_budget_amount, p_budget_currency,
+        'DRAFT', p_transport_pref, p_room_pref
     )
     RETURNING reservation_id INTO p_reservation_id;
+  END create_reservation;
 
-END create_reservation;
 
--- add participant
-
-PROCEDURE add_participant(
-      p_reservation_id NUMBER,
-      p_first_name     VARCHAR2,
-      p_last_name      VARCHAR2,
-      p_birth_date     DATE,
-      p_relation       VARCHAR2
-) IS
-    v_cnt NUMBER;
-    v_age NUMBER;
-BEGIN
-    SELECT COUNT(*) INTO v_cnt
-    FROM reservations
-    WHERE reservation_id = p_reservation_id;
-
-    IF v_cnt = 0 THEN
-        RAISE_APPLICATION_ERROR(-20010,'Reservation does not exist.');
-    END IF;
-
-    v_age := TRUNC(MONTHS_BETWEEN(SYSDATE, p_birth_date)/12);
-
+  PROCEDURE add_participant(
+      p_reservation_id IN participants.reservation_id%TYPE,
+      p_first_name     IN participants.first_name%TYPE,
+      p_last_name      IN participants.last_name%TYPE,
+      p_birth_date     IN participants.birth_date%TYPE,
+      p_relation       IN participants.relation_to_client%TYPE
+  ) IS
+  BEGIN
     INSERT INTO participants(
-        participant_id, reservation_id,
-        first_name, last_name, birth_date,
-        age_years, participant_type, relation_to_client
+        participant_id,
+        reservation_id,
+        first_name,
+        last_name,
+        birth_date,
+        relation_to_client
     ) VALUES (
         seq_participants.NEXTVAL,
         p_reservation_id,
-        p_first_name, p_last_name,
+        p_first_name,
+        p_last_name,
         p_birth_date,
-        v_age,
-        CASE WHEN v_age < 12 THEN 'CHILD' ELSE 'ADULT' END,
         p_relation
     );
-END add_participant;
+  END add_participant;
 
--- set transport preference
-PROCEDURE set_transport_pref(
-      p_participant_id NUMBER,
-      p_class          VARCHAR2,
-      p_seat           VARCHAR2 DEFAULT NULL,
-      p_meal           VARCHAR2 DEFAULT NULL,
-      p_cabin          VARCHAR2 DEFAULT NULL,
-      p_service        VARCHAR2 DEFAULT NULL
-) IS
-BEGIN
-    MERGE INTO participant_transport_prefs p
-    USING (SELECT p_participant_id pid FROM dual) x
-    ON (p.participant_id = x.pid)
-    WHEN MATCHED THEN UPDATE SET
-        preferred_class   = UPPER(p_class),
-        preferred_seat    = UPPER(p_seat),
-        preferred_meal    = UPPER(p_meal),
-        preferred_cabin   = UPPER(p_cabin),
-        preferred_service = UPPER(p_service)
-    WHEN NOT MATCHED THEN INSERT (
-        participant_id, preferred_class, preferred_seat,
-        preferred_meal, preferred_cabin, preferred_service
-    ) VALUES (
-        p_participant_id, UPPER(p_class), UPPER(p_seat),
-        UPPER(p_meal), UPPER(p_cabin), UPPER(p_service)
-    );
-END set_transport_pref;
 
--- add room preference
-PROCEDURE add_room_pref(
-      p_participant_id NUMBER,
-      p_preference     VARCHAR2,
-      p_value          VARCHAR2
-) IS
-BEGIN
-    MERGE INTO participant_room_prefs p
-    USING (SELECT p_participant_id pid, UPPER(p_preference) pref FROM dual) x
-    ON (p.participant_id = x.pid AND p.preference = x.pref)
-    WHEN MATCHED THEN UPDATE SET
-        pref_value = p_value
-    WHEN NOT MATCHED THEN INSERT (
-        participant_id, preference, pref_value
-    ) VALUES (
-        p_participant_id, UPPER(p_preference), p_value
-    );
-END add_room_pref;
+  PROCEDURE set_transport_pref(
+      p_reservation_id IN reservations.reservation_id%TYPE,
+      p_preference     IN reservations.transport_pref%TYPE
+  ) IS
+  BEGIN
+    UPDATE reservations
+    SET transport_pref = p_preference
+    WHERE reservation_id = p_reservation_id;
+  END set_transport_pref;
 
--- assign transport
-PROCEDURE assign_transport(
-      p_reservation_id NUMBER,
-      p_allow_downgrade CHAR
-) IS
-    v_start     VARCHAR2(100);
-    v_target    VARCHAR2(100);
-    v_date      DATE;
-    v_distance  NUMBER;
 
-    TYPE t_part IS RECORD (
-      pid NUMBER,
-      pref_class VARCHAR2(20),
-      age NUMBER
-    );
-    TYPE t_tab IS TABLE OF t_part;
-    v_parts t_tab;
+  PROCEDURE add_room_pref(
+      p_reservation_id IN reservations.reservation_id%TYPE,
+      p_preference     IN reservations.room_pref%TYPE
+  ) IS
+  BEGIN
+    UPDATE reservations
+    SET room_pref = p_preference
+    WHERE reservation_id = p_reservation_id;
+  END add_room_pref;
 
-    v_people NUMBER;
-    v_mode VARCHAR2(20);
-    v_tr_res_id NUMBER;
 
-BEGIN
-    -- Reservation info
-    SELECT city_start, city_target, date_from
-    INTO v_start, v_target, v_date
+  PROCEDURE assign_transport(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  ) IS
+    v_city_start   reservations.city_start%TYPE;
+    v_city_target  reservations.city_target%TYPE;
+    v_date_from    reservations.date_from%TYPE;
+    v_date_to      reservations.date_to%TYPE;
+    v_pref         reservations.transport_pref%TYPE;
+    v_mode         VARCHAR2(10);
+  BEGIN
+    SELECT city_start, city_target, date_from, date_to, NVL(transport_pref,'ANY')
+    INTO v_city_start, v_city_target, v_date_from, v_date_to, v_pref
     FROM reservations
     WHERE reservation_id = p_reservation_id;
 
-    -- Distance from routes
-    SELECT distance_km INTO v_distance
-    FROM routes
-    WHERE city_start=v_start
-      AND city_target=v_target;
+    v_mode := CASE
+                WHEN v_pref = 'CAR' THEN 'COACH'
+                WHEN v_pref = 'TRAIN' THEN 'TRAIN'
+                WHEN v_pref = 'PLANE' THEN 'FLIGHT'
+                ELSE 'FLIGHT'
+              END;
 
-    -- People
-    SELECT COUNT(*) INTO v_people
-    FROM participants
+    IF v_mode = 'FLIGHT' THEN
+        INSERT INTO transport_reservations(
+            transport_res_id,
+            reservation_id,
+            transport_type,
+            flight_id,
+            passengers_count,
+            assigned_class,
+            total_price
+        )
+        SELECT
+            seq_transport_reservations.NEXTVAL,
+            p_reservation_id,
+            'FLIGHT',
+            f.flight_id,
+            1,
+            'ECONOMY',
+            f.price_econ
+        FROM transport_flights f
+        WHERE f.city_start = v_city_start
+          AND f.city_target = v_city_target
+          AND f.depart_time BETWEEN v_date_from AND v_date_to
+          AND f.status = 'ACTIVE'
+          AND ROWNUM = 1;
+
+    ELSIF v_mode = 'TRAIN' THEN
+        INSERT INTO transport_reservations(
+            transport_res_id,
+            reservation_id,
+            transport_type,
+            train_id,
+            passengers_count,
+            assigned_class,
+            total_price
+        )
+        SELECT
+            seq_transport_reservations.NEXTVAL,
+            p_reservation_id,
+            'TRAIN',
+            t.train_id,
+            1,
+            'STANDARD',
+            t.price_standard
+        FROM transport_trains t
+        WHERE t.city_start = v_city_start
+          AND t.city_target = v_city_target
+          AND t.depart_time BETWEEN v_date_from AND v_date_to
+          AND t.status = 'ACTIVE'
+          AND ROWNUM = 1;
+
+    ELSE
+        INSERT INTO transport_reservations(
+            transport_res_id,
+            reservation_id,
+            transport_type,
+            coach_id,
+            passengers_count,
+            assigned_class,
+            total_price
+        )
+        SELECT
+            seq_transport_reservations.NEXTVAL,
+            p_reservation_id,
+            'COACH',
+            c.coach_id,
+            1,
+            'STANDARD',
+            c.price_standard
+        FROM transport_coaches c
+        WHERE c.city_start = v_city_start
+          AND c.city_target = v_city_target
+          AND c.depart_time BETWEEN v_date_from AND v_date_to
+          AND c.status = 'ACTIVE'
+          AND ROWNUM = 1;
+    END IF;
+  END assign_transport;
+
+
+
+  PROCEDURE assign_rooms(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  ) IS
+    v_city_target reservations.city_target%TYPE;
+    v_date_from   reservations.date_from%TYPE;
+    v_date_to     reservations.date_to%TYPE;
+    v_hotel_id    hotels.hotel_id%TYPE;
+    v_room_id     hotel_rooms.room_id%TYPE;
+  BEGIN
+    SELECT city_target, date_from, date_to
+    INTO v_city_target, v_date_from, v_date_to
+    FROM reservations
     WHERE reservation_id = p_reservation_id;
 
-    -- Load participants
-    SELECT p.participant_id,
-           NVL(t.preferred_class,'ECONOMY'),
-           p.age_years
-    BULK COLLECT INTO v_parts
-    FROM participants p
-    LEFT JOIN participant_transport_prefs t
-           ON p.participant_id=t.participant_id
-    WHERE p.reservation_id = p_reservation_id;
+    SELECT h.hotel_id, r.room_id
+    INTO v_hotel_id, v_room_id
+    FROM hotels h
+    JOIN hotel_rooms r ON r.hotel_id = h.hotel_id
+    WHERE h.city = v_city_target
+      AND r.status = 'AVAILABLE'
+      AND ROWNUM = 1;
 
-    -- Choose mode
-    IF v_distance > 800 THEN
-        v_mode := 'FLIGHT';
-    ELSIF v_distance BETWEEN 200 AND 800 THEN
-        v_mode := 'TRAIN';
-    ELSE
-        v_mode := 'COACH';
-    END IF;
-
-    -- try flight
-    IF v_mode='FLIGHT' THEN
-        DECLARE
-            r transport_flights%ROWTYPE;
-            v_class VARCHAR2(20);
-            v_price NUMBER;
-        BEGIN
-            SELECT *
-            INTO r
-            FROM transport_flights
-            WHERE city_start=v_start
-              AND city_target=v_target
-              AND depart_time BETWEEN v_date-2 AND v_date+2
-              AND status='ACTIVE'
-            FETCH FIRST 1 ROW ONLY;
-
-            v_class := v_parts(1).pref_class;
-
-            -- Downgrades
-            IF v_class='VIP' AND r.seats_vip_free < v_people THEN
-                IF p_allow_downgrade='T' THEN v_class:='BUSINESS';
-                ELSE RAISE_APPLICATION_ERROR(-21001,'VIP full'); END IF;
-            END IF;
-
-            IF v_class='BUSINESS' AND r.seats_bus_free < v_people THEN
-                IF p_allow_downgrade='T' THEN v_class:='ECONOMY';
-                ELSE RAISE_APPLICATION_ERROR(-21002,'BUSINESS full'); END IF;
-            END IF;
-
-            IF v_class='ECONOMY' AND r.seats_econ_free < v_people THEN
-                RAISE_APPLICATION_ERROR(-21003,'ECONOMY full');
-            END IF;
-
-            v_price :=
-                CASE v_class
-                WHEN 'VIP' THEN r.price_vip
-                WHEN 'BUSINESS' THEN r.price_bus
-                ELSE r.price_econ
-                END * v_people;
-
-            INSERT INTO transport_reservations(
-                transport_res_id,reservation_id,transport_type,
-                flight_id,passengers_count,assigned_class,total_price
-            ) VALUES (
-                seq_transport_reservations.NEXTVAL,
-                p_reservation_id,'FLIGHT',
-                r.flight_id,v_people,v_class,v_price
-            ) RETURNING transport_res_id INTO v_tr_res_id;
-
-            -- Seats
-            FOR i IN 1..v_parts.COUNT LOOP
-                INSERT INTO transport_details(
-                    detail_id, transport_res_id,
-                    participant_id, seat_no, section, preference_met
-                ) VALUES (
-                    seq_transport_details.NEXTVAL,
-                    v_tr_res_id,
-                    v_parts(i).pid,
-                    pick_seat,
-                    v_class,
-                    'T'
-                );
-            END LOOP;
-
-            RETURN;
-        EXCEPTION WHEN NO_DATA_FOUND THEN NULL;
-        END;
-    END IF;
-
-    -- try train
-    IF v_mode IN ('TRAIN','FLIGHT') THEN
-        DECLARE
-            r transport_trains%ROWTYPE;
-            v_class VARCHAR2(20);
-            v_price NUMBER;
-        BEGIN
-            SELECT *
-            INTO r
-            FROM transport_trains
-            WHERE city_start=v_start
-              AND city_target=v_target
-              AND depart_time BETWEEN v_date-2 AND v_date+2
-              AND status='ACTIVE'
-            FETCH FIRST 1 ROW ONLY;
-
-            v_class := NVL(v_parts(1).pref_class,'STANDARD');
-
-            -- Quiet rules
-            IF v_class='QUIET' THEN
-                FOR i IN 1..v_parts.COUNT LOOP
-                    IF v_parts(i).age < 12 THEN
-                        v_class := 'STANDARD';
-                    END IF;
-                END LOOP;
-            END IF;
-
-            -- Downgrades
-            IF v_class='VIP' AND r.seats_vip_free < v_people THEN
-                IF p_allow_downgrade='T' THEN v_class:='STANDARD';
-                ELSE RAISE_APPLICATION_ERROR(-21004,'Train VIP full'); END IF;
-            END IF;
-
-            IF v_class='QUIET' AND r.seats_quiet_free < v_people THEN
-                IF p_allow_downgrade='T' THEN v_class:='STANDARD';
-                ELSE RAISE_APPLICATION_ERROR(-21005,'Quiet full'); END IF;
-            END IF;
-
-            IF v_class='STANDARD' AND r.seats_standard_free < v_people THEN
-                RAISE_APPLICATION_ERROR(-21006,'Train standard full');
-            END IF;
-
-            v_price :=
-                CASE v_class
-                WHEN 'VIP' THEN r.price_vip
-                WHEN 'QUIET' THEN r.price_quiet
-                ELSE r.price_standard
-                END * v_people;
-
-            INSERT INTO transport_reservations(
-                transport_res_id,reservation_id,transport_type,
-                train_id,passengers_count,assigned_class,total_price
-            ) VALUES (
-                seq_transport_reservations.NEXTVAL,
-                p_reservation_id,'TRAIN',
-                r.train_id,v_people,v_class,v_price
-            ) RETURNING transport_res_id INTO v_tr_res_id;
-
-            -- Seat list
-            FOR i IN 1..v_parts.COUNT LOOP
-                INSERT INTO transport_details(
-                    detail_id, transport_res_id,
-                    participant_id, seat_no, section, preference_met
-                ) VALUES (
-                    seq_transport_details.NEXTVAL,
-                    v_tr_res_id,
-                    v_parts(i).pid,
-                    pick_seat,
-                    v_class,
-                    'T'
-                );
-            END LOOP;
-
-            RETURN;
-        EXCEPTION WHEN NO_DATA_FOUND THEN NULL;
-        END;
-    END IF;
-
-    -- try coach
-    DECLARE
-        r transport_coaches%ROWTYPE;
-        v_price NUMBER;
-    BEGIN
-        SELECT *
-        INTO r
-        FROM transport_coaches
-        WHERE city_start=v_start
-          AND city_target=v_target
-          AND depart_time BETWEEN v_date-2 AND v_date+2
-          AND status='ACTIVE'
-        FETCH FIRST 1 ROW ONLY;
-
-        IF r.seats_free < v_people THEN
-            RAISE_APPLICATION_ERROR(-21020,'Coach full');
-        END IF;
-
-        v_price := r.price_standard * v_people;
-
-        INSERT INTO transport_reservations(
-            transport_res_id,reservation_id,transport_type,
-            coach_id,passengers_count,assigned_class,total_price
-        ) VALUES (
-            seq_transport_reservations.NEXTVAL,
-            p_reservation_id,'COACH',
-            r.coach_id,v_people,'STANDARD',v_price
-        ) RETURNING transport_res_id INTO v_tr_res_id;
-
-        FOR i IN 1..v_parts.COUNT LOOP
-            INSERT INTO transport_details(
-                detail_id, transport_res_id,
-                participant_id, seat_no, section, preference_met
-            ) VALUES (
-                seq_transport_details.NEXTVAL,
-                v_tr_res_id,
-                v_parts(i).pid,
-                pick_seat,
-                'STANDARD',
-                'T'
-            );
-        END LOOP;
-
-        RETURN;
-    EXCEPTION WHEN NO_DATA_FOUND THEN
-        RAISE_APPLICATION_ERROR(-21030,'No transport available');
-    END;
-END assign_transport;
-
-
-PROCEDURE assign_transport(p_reservation_id NUMBER) IS
-BEGIN
-    assign_transport(p_reservation_id,'T');
-END assign_transport;
-
--- assign rooms
-
-PROCEDURE assign_rooms(p_reservation_id NUMBER) IS
-    v_city VARCHAR2(100);
-    v_people NUMBER;
-    v_children NUMBER;
-    v_infants NUMBER;
-
-    TYPE t_rec IS RECORD(pid NUMBER, age NUMBER);
-    TYPE t_tab IS TABLE OF t_rec;
-    v_parts t_tab;
-
-    v_hotel NUMBER;
-    v_room NUMBER;
-    v_type VARCHAR2(20);
-    v_price NUMBER;
-BEGIN
-    SELECT city_target INTO v_city
-    FROM reservations WHERE reservation_id=p_reservation_id;
-
-    SELECT COUNT(*) INTO v_people
-    FROM participants WHERE reservation_id=p_reservation_id;
-
-    SELECT COUNT(*) INTO v_children
-    FROM participants WHERE reservation_id=p_reservation_id AND age_years<12;
-
-    SELECT COUNT(*) INTO v_infants
-    FROM participants WHERE reservation_id=p_reservation_id AND age_years<3;
-
-    SELECT participant_id, age_years BULK COLLECT INTO v_parts
-    FROM participants WHERE reservation_id=p_reservation_id;
-
-    -- hotel
-    SELECT hotel_id
-    INTO v_hotel
-    FROM hotels
-    WHERE city=v_city
-      AND (v_children=0 OR family_rooms='T')
-    ORDER BY rating DESC
-    FETCH FIRST 1 ROW ONLY;
-
-    -- room
-    SELECT room_id, room_type, base_price_per_night
-    INTO v_room, v_type, v_price
-    FROM hotel_rooms
-    WHERE hotel_id=v_hotel
-      AND status='FREE'
-      AND max_persons>=v_people
-      AND (v_children=0 OR room_type='FAMILY')
-      AND (v_infants=0 OR has_child_bed='T')
-    ORDER BY base_price_per_night
-    FETCH FIRST 1 ROW ONLY;
-
-    -- accommodation 
     INSERT INTO accommodation(
-        accommodation_id,reservation_id,
-        hotel_id,room_id,room_type,
-        guests_count,total_price
+        accommodation_id,
+        reservation_id,
+        hotel_id,
+        room_id,
+        room_type,
+        guests_count,
+        total_price,
+        check_in,
+        check_out
     ) VALUES (
         seq_accommodation.NEXTVAL,
         p_reservation_id,
-        v_hotel,v_room,v_type,
-        v_people,
-        v_price * v_people
+        v_hotel_id,
+        v_room_id,
+        (SELECT room_type FROM hotel_rooms WHERE room_id = v_room_id),
+        1,
+        0,
+        v_date_from,
+        v_date_to
     );
-
-    -- assign participants to room
-    FOR i IN 1..v_parts.COUNT LOOP
-        INSERT INTO room_assignments(
-            room_assign_id,accommodation_id,participant_id
-        )
-        SELECT seq_room_assignments.NEXTVAL,
-               accommodation_id,
-               v_parts(i).pid
-        FROM accommodation
-        WHERE reservation_id=p_reservation_id;
-    END LOOP;
 
     UPDATE hotel_rooms
-    SET status='BOOKED'
-    WHERE room_id=v_room;
-END assign_rooms;
+    SET status = 'RESERVED'
+    WHERE room_id = v_room_id;
+  END assign_rooms;
 
--- generate transfers
 
-PROCEDURE generate_transfers(p_reservation_id NUMBER) IS
-    v_city VARCHAR2(100);
-    v_start VARCHAR2(100);
-    v_date DATE;
-BEGIN
-    SELECT city_target, city_start, date_from
-    INTO v_city, v_start, v_date
-    FROM reservations WHERE reservation_id=p_reservation_id;
 
-    INSERT INTO transport_segments(
-        segment_id,reservation_id,segment_type,
-        transport_mode,vehicle_no,capacity,
-        passengers,depart_time,arrive_time,
-        from_city,to_city,price,service_class,zone_type
-    ) VALUES (
-        seq_segments.NEXTVAL,p_reservation_id,'TRANSFER',
-        'MINIVAN','IN-'||p_reservation_id,7,
-        7,v_date+1/24,v_date+2/24,
-        v_city,v_city||' Hotel Area',50,'STD',NULL
-    );
-
-    INSERT INTO transport_segments(
-        segment_id,reservation_id,segment_type,
-        transport_mode,vehicle_no,capacity,
-        passengers,depart_time,arrive_time,
-        from_city,to_city,price,service_class,zone_type
-    ) VALUES (
-        seq_segments.NEXTVAL,p_reservation_id,'RETURN',
-        'MINIVAN','OUT-'||p_reservation_id,7,
-        7,v_date+5,v_date+5+1/24,
-        v_city||' Hotel Area',v_city,50,'STD',NULL
-    );
-END generate_transfers;
-
--- assign guides
-
-PROCEDURE assign_guides(p_reservation_id NUMBER) IS
-    v_city VARCHAR2(100);
-    v_date DATE;
-BEGIN
-    SELECT city_target, date_from
-    INTO v_city, v_date
-    FROM reservations WHERE reservation_id=p_reservation_id;
-
-    FOR d IN 1..3 LOOP
-        BEGIN
-            INSERT INTO guide_assignments(
-                assign_id,reservation_id,trip_day,guide_id
-            ) SELECT
-                seq_guides_assign.NEXTVAL,
-                p_reservation_id,d,guide_id
-            FROM (
-                SELECT guide_id
-                FROM guides
-                WHERE city=v_city
-                  AND availability='AVAILABLE'
-                ORDER BY rating DESC
-            )
-            WHERE ROWNUM=1;
-
-            UPDATE guides
-            SET availability='ASSIGNED'
-            WHERE guide_id IN (
-                SELECT guide_id
-                FROM guide_assignments
-                WHERE reservation_id=p_reservation_id
-                  AND trip_day=d
-        );
-        EXCEPTION WHEN NO_DATA_FOUND THEN NULL;
-        END;
-    END LOOP;
-END assign_guides;
-
--- finalize plan
-
-PROCEDURE finalize_plan(p_reservation_id NUMBER) IS
-    v_cnt NUMBER;
-BEGIN
-    SELECT COUNT(*) INTO v_cnt
-    FROM transport_reservations
-    WHERE reservation_id=p_reservation_id;
-    IF v_cnt=0 THEN RAISE_APPLICATION_ERROR(-22001,'No transport'); END IF;
-
-    SELECT COUNT(*) INTO v_cnt
-    FROM accommodation
-    WHERE reservation_id=p_reservation_id;
-    IF v_cnt=0 THEN RAISE_APPLICATION_ERROR(-22002,'No room'); END IF;
-
-    SELECT COUNT(*) INTO v_cnt
-    FROM transport_segments
-    WHERE reservation_id=p_reservation_id
-      AND segment_type IN ('TRANSFER','RETURN');
-    IF v_cnt<2 THEN RAISE_APPLICATION_ERROR(-22003,'No transfers'); END IF;
-
-    UPDATE reservations
-    SET summary_note='Finalized on '||TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI')
-    WHERE reservation_id=p_reservation_id;
-END finalize_plan;
-
--- confirm reservation
-
-PROCEDURE confirm_reservation(p_reservation_id NUMBER) IS
-    v_status VARCHAR2(20);
-BEGIN
-    SELECT status INTO v_status
+  PROCEDURE assign_guides(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  ) IS
+    v_city_target reservations.city_target%TYPE;
+    v_guide_id    guides.guide_id%TYPE;
+  BEGIN
+    SELECT city_target
+    INTO v_city_target
     FROM reservations
-    WHERE reservation_id=p_reservation_id;
+    WHERE reservation_id = p_reservation_id;
 
-    IF v_status='CONFIRMED' THEN
-        RAISE_APPLICATION_ERROR(-23001,'Already confirmed');
-    END IF;
+    SELECT guide_id
+    INTO v_guide_id
+    FROM guides
+    WHERE city = v_city_target
+      AND availability_status = 'AVAILABLE'
+      AND ROWNUM = 1;
 
-    IF v_status='CANCELED' THEN
-        RAISE_APPLICATION_ERROR(-23002,'Cannot confirm canceled');
-    END IF;
-
-    UPDATE reservations
-    SET status='CONFIRMED'
-    WHERE reservation_id=p_reservation_id;
-END confirm_reservation;
-
--- cancel reservation
-
-PROCEDURE cancel_reservation(p_reservation_id NUMBER) IS
-BEGIN
-    UPDATE hotel_rooms
-    SET status='FREE'
-    WHERE room_id IN (
-        SELECT room_id FROM accommodation
-        WHERE reservation_id=p_reservation_id
+    INSERT INTO guide_assignments(
+        assign_id,
+        reservation_id,
+        guide_id,
+        trip_day
+    ) VALUES (
+        seq_guides_assign.NEXTVAL,
+        p_reservation_id,
+        v_guide_id,
+        1
     );
 
     UPDATE guides
-    SET availability='AVAILABLE'
-    WHERE guide_id IN (
-        SELECT guide_id FROM guide_assignments
-        WHERE reservation_id=p_reservation_id
-    );
+    SET availability_status = 'ASSIGNED'
+    WHERE guide_id = v_guide_id;
+  END assign_guides;
 
-    DELETE FROM transport_segments WHERE reservation_id=p_reservation_id;
-    DELETE FROM transport_details WHERE transport_res_id IN (
-        SELECT transport_res_id FROM transport_reservations
-        WHERE reservation_id=p_reservation_id
-    );
-    DELETE FROM transport_reservations WHERE reservation_id=p_reservation_id;
-    DELETE FROM accommodation WHERE reservation_id=p_reservation_id;
-    DELETE FROM guide_assignments WHERE reservation_id=p_reservation_id;
 
+
+  PROCEDURE generate_transfers(
+      p_reservation_id IN reservations.reservation_id%TYPE
+  ) IS
+    v_city_start  reservations.city_start%TYPE;
+    v_city_target reservations.city_target%TYPE;
+  BEGIN
+    SELECT city_start, city_target
+    INTO v_city_start, v_city_target
+    FROM reservations
+    WHERE reservation_id = p_reservation_id;
+
+    INSERT INTO transfers(transfer_id, reservation_id, description)
+    VALUES (seq_transfers.NEXTVAL, p_reservation_id,
+            'Transfer from '||v_city_start||' to hotel in '||v_city_target);
+
+    INSERT INTO transfers(transfer_id, reservation_id, description)
+    VALUES (seq_transfers.NEXTVAL, p_reservation_id,
+            'Transfer from hotel in '||v_city_target||' to departure point');
+  END generate_transfers;
+
+
+
+  PROCEDURE finalize_plan(p_reservation_id IN reservations.reservation_id%TYPE) IS
+  BEGIN
     UPDATE reservations
-    SET status='CANCELED'
-    WHERE reservation_id=p_reservation_id;
-END cancel_reservation;
+    SET status = 'PLANNED'
+    WHERE reservation_id = p_reservation_id;
+  END finalize_plan;
+
+
+
+  PROCEDURE confirm_reservation(p_reservation_id IN reservations.reservation_id%TYPE) IS
+  BEGIN
+    UPDATE reservations
+    SET status = 'CONFIRMED'
+    WHERE reservation_id = p_reservation_id;
+  END confirm_reservation;
+
+
+
+  PROCEDURE cancel_reservation(p_reservation_id IN reservations.reservation_id%TYPE) IS
+  BEGIN
+    UPDATE reservations
+    SET status = 'CANCELLED'
+    WHERE reservation_id = p_reservation_id;
+
+    UPDATE hotel_rooms
+    SET status = 'AVAILABLE'
+    WHERE room_id IN (
+        SELECT room_id
+        FROM accommodation
+        WHERE reservation_id = p_reservation_id
+    );
+
+    UPDATE guides
+    SET availability_status = 'AVAILABLE'
+    WHERE guide_id IN (
+        SELECT guide_id
+        FROM guide_assignments
+        WHERE reservation_id = p_reservation_id
+    );
+  END cancel_reservation;
 
 END travel_agency_operations;
 /
 
--- PACKAGE BODY: travel_agency_intelligence
 
+-- PACKAGE BODY: travel_agency_intelligence
 CREATE OR REPLACE PACKAGE BODY travel_agency_intelligence AS
 
--- hotel recommendation
-
+------------------------------------------------------------------------
+-- HOTEL RECOMMENDATION
+------------------------------------------------------------------------
 FUNCTION recommend_best_hotel(
       p_city        VARCHAR2,
       p_budget      NUMBER,
@@ -762,63 +445,72 @@ FUNCTION recommend_best_hotel(
     v_name VARCHAR2(200);
 BEGIN
     IF p_with_kids THEN
-        SELECT hotel_name INTO v_name
+        SELECT hotel_name
+        INTO v_name
         FROM (
             SELECT hotel_name
             FROM hotels h
-            JOIN hotel_rooms r ON r.hotel_id=h.hotel_id
-            WHERE h.city=p_city
+            JOIN hotel_rooms r ON r.hotel_id = h.hotel_id
+            WHERE h.city = p_city
               AND r.base_price_per_night <= p_budget
-              AND h.family_rooms='T'
-              AND r.status='FREE'
-            GROUP BY hotel_name, h.rating
-            ORDER BY h.rating DESC
+              AND h.family_rooms = 'T'
+              AND r.status = 'AVAILABLE'
+            ORDER BY h.rating DESC, r.base_price_per_night
         )
-        WHERE ROWNUM=1;
+        WHERE ROWNUM = 1;
+
     ELSE
-        SELECT hotel_name INTO v_name
+        SELECT hotel_name
+        INTO v_name
         FROM (
             SELECT hotel_name
             FROM hotels h
-            JOIN hotel_rooms r ON r.hotel_id=h.hotel_id
-            WHERE h.city=p_city
+            JOIN hotel_rooms r ON r.hotel_id = h.hotel_id
+            WHERE h.city = p_city
               AND r.base_price_per_night <= p_budget
-              AND r.status='FREE'
-            GROUP BY hotel_name, h.rating
-            ORDER BY h.rating DESC
+              AND r.status = 'AVAILABLE'
+            ORDER BY h.rating DESC, r.base_price_per_night
         )
-        WHERE ROWNUM=1;
+        WHERE ROWNUM = 1;
     END IF;
 
     RETURN v_name;
+
 EXCEPTION WHEN NO_DATA_FOUND THEN
-    RETURN 'NO HOTEL AVAILABLE';
+    RETURN 'No suitable hotel found';
 END recommend_best_hotel;
 
--- recommend transport
 
+------------------------------------------------------------------------
+-- TRANSPORT RECOMMENDATION
+------------------------------------------------------------------------
 FUNCTION recommend_transport(
-      p_distance NUMBER,
-      p_budget NUMBER,
-      p_preference VARCHAR2
+      p_distance    NUMBER,
+      p_budget      NUMBER,
+      p_preference  VARCHAR2
 ) RETURN VARCHAR2 IS
 BEGIN
-    IF p_preference='COMFORT' THEN
-        RETURN 'FLIGHT or EXPRESS TRAIN';
+    IF p_preference IS NOT NULL THEN
+        RETURN p_preference;
+    END IF;
 
-    ELSIF p_preference='ECONOMY' THEN
-        RETURN CASE WHEN p_distance<400
-                    THEN 'COACH'
-                    ELSE 'LOW-COST FLIGHT'
-               END;
-
+    IF p_distance < 200 THEN
+        RETURN 'TRAIN';
+    ELSIF p_distance BETWEEN 200 AND 800 THEN
+        IF p_budget < 100 THEN
+            RETURN 'TRAIN';
+        ELSE
+            RETURN 'PLANE';
+        END IF;
     ELSE
-        RETURN 'ANY MODE POSSIBLE';
+        RETURN 'PLANE';
     END IF;
 END recommend_transport;
 
--- attractions
 
+------------------------------------------------------------------------
+-- ATTRACTION RECOMMENDATION
+------------------------------------------------------------------------
 FUNCTION recommend_attractions(
       p_city VARCHAR2,
       p_interests VARCHAR2
@@ -828,109 +520,321 @@ BEGIN
     OPEN rc FOR
         SELECT attraction_name, description, price_per_person
         FROM attractions
-        WHERE city=p_city
-          AND LOWER(category) LIKE LOWER('%'||p_interests||'%')
-        ORDER BY rating DESC;
+        WHERE city = p_city
+          AND (p_interests IS NULL
+               OR LOWER(description) LIKE '%' || LOWER(p_interests) || '%')
+        ORDER BY rating DESC, price_per_person;
+
     RETURN rc;
 END recommend_attractions;
 
--- total cost
 
-FUNCTION estimated_cost(p_reservation_id NUMBER) RETURN NUMBER IS
-    v_sum NUMBER;
-BEGIN
-    SELECT NVL(SUM(total_price),0)
-    INTO v_sum
-    FROM (
-        SELECT total_price FROM accommodation WHERE reservation_id=p_reservation_id
-        UNION ALL
-        SELECT total_price FROM transport_reservations WHERE reservation_id=p_reservation_id
-        UNION ALL
-        SELECT price FROM transport_segments WHERE reservation_id=p_reservation_id
-    );
-
-    RETURN v_sum;
-END estimated_cost;
-
--- value index
-
-FUNCTION trip_value_index(p_reservation_id NUMBER) RETURN NUMBER IS
-    v_cost NUMBER;
-    v_rating NUMBER;
-BEGIN
-    v_cost := estimated_cost(p_reservation_id);
-
-    IF v_cost=0 THEN RETURN 0; END IF;
-
-    BEGIN
-        SELECT NVL(AVG(rating),5)
-        INTO v_rating
-        FROM reviews
-        WHERE reservation_id=p_reservation_id;
-    EXCEPTION WHEN OTHERS THEN
-        v_rating := 5;
-    END;
-
-    RETURN ROUND(v_rating * 1000 / v_cost, 2);
-END trip_value_index;
-
--- loyalty
-
-FUNCTION loyalty_level(p_client_id NUMBER) RETURN VARCHAR2 IS
-    v_cnt NUMBER;
-BEGIN
-    SELECT COUNT(*)
-    INTO v_cnt
-    FROM reservations
-    WHERE client_id=p_client_id
-      AND status='CONFIRMED';
-
-    IF v_cnt>=10 THEN RETURN 'PLATINUM';
-    ELSIF v_cnt>=5 THEN RETURN 'GOLD';
-    ELSIF v_cnt>=2 THEN RETURN 'SILVER';
-    ELSE RETURN 'NEW';
-    END IF;
-END loyalty_level;
-
--- discount
-
-FUNCTION proposed_discount(p_client_id NUMBER) RETURN NUMBER IS
-    v_lvl VARCHAR2(20);
-BEGIN
-    v_lvl := loyalty_level(p_client_id);
-
-    CASE v_lvl
-        WHEN 'PLATINUM' THEN RETURN 20;
-        WHEN 'GOLD' THEN RETURN 15;
-        WHEN 'SILVER' THEN RETURN 10;
-        ELSE RETURN 0;
-    END CASE;
-END proposed_discount;
-
--- trip summary
-
+------------------------------------------------------------------------
+-- TRIP SUMMARY
+------------------------------------------------------------------------
 FUNCTION trip_summary(p_reservation_id NUMBER) RETURN CLOB IS
     res CLOB;
-    v reservations%ROWTYPE;
-    v_cost NUMBER;
+    v_city_start reservations.city_start%TYPE;
+    v_city_target reservations.city_target%TYPE;
+    v_trip_type reservations.trip_type%TYPE;
+    v_date_from DATE;
+    v_date_to   DATE;
+    v_budget    NUMBER;
+    v_currency  VARCHAR2(10);
+    v_status    VARCHAR2(20);
+    v_cost      NUMBER;
+    v_client_name VARCHAR2(200);
 BEGIN
-    SELECT * INTO v FROM reservations
-    WHERE reservation_id=p_reservation_id;
+    SELECT c.first_name || ' ' || c.last_name,
+           r.city_start, r.city_target,
+           r.trip_type, r.date_from, r.date_to,
+           r.budget_amount, r.budget_currency, r.status
+    INTO v_client_name, v_city_start, v_city_target,
+         v_trip_type, v_date_from, v_date_to,
+         v_budget, v_currency, v_status
+    FROM reservations r
+    JOIN clients c ON c.client_id = r.client_id
+    WHERE reservation_id = p_reservation_id;
 
     v_cost := estimated_cost(p_reservation_id);
 
     res :=
-        'TRIP SUMMARY'||CHR(10)||
-        '------------'||CHR(10)||
-        'Destination: '||v.city_target||CHR(10)||
-        'Trip type: '||v.trip_type||CHR(10)||
-        'Dates: '||TO_CHAR(v.date_from,'YYYY-MM-DD')||' to '||TO_CHAR(v.date_to,'YYYY-MM-DD')||CHR(10)||
-        'Budget: '||v.budget_amount||' '||v.budget_currency||CHR(10)||
-        'Status: '||v.status||CHR(10)||CHR(10)||
+        'Reservation summary for '||v_client_name||CHR(10)||
+        'Route: '||v_city_start||' -> '||v_city_target||CHR(10)||
+        'Trip type: '||v_trip_type||CHR(10)||
+        'Dates: '||TO_CHAR(v_date_from,'YYYY-MM-DD')||' to '||TO_CHAR(v_date_to,'YYYY-MM-DD')||CHR(10)||
+        'Budget: '||v_budget||' '||v_currency||CHR(10)||
+        'Status: '||v_status||CHR(10)||CHR(10)||
         'Estimated cost: '||v_cost||CHR(10);
 
     RETURN res;
 END trip_summary;
+
+
+------------------------------------------------------------------------
+-- LOYALTY
+------------------------------------------------------------------------
+FUNCTION loyalty_level(p_client_id NUMBER) RETURN VARCHAR2 IS
+    v_total NUMBER;
+BEGIN
+    SELECT NVL(SUM(estimated_cost(reservation_id)), 0)
+    INTO v_total
+    FROM reservations
+    WHERE client_id = p_client_id
+      AND status IN ('CONFIRMED','COMPLETED');
+
+    IF v_total > 10000 THEN
+        RETURN 'PLATINUM';
+    ELSIF v_total > 5000 THEN
+        RETURN 'GOLD';
+    ELSIF v_total > 2000 THEN
+        RETURN 'SILVER';
+    ELSE
+        RETURN 'NEW';
+    END IF;
+END loyalty_level;
+
+
+FUNCTION proposed_discount(p_client_id NUMBER) RETURN NUMBER IS
+    v_level VARCHAR2(20);
+BEGIN
+    v_level := loyalty_level(p_client_id);
+
+    CASE v_level
+        WHEN 'PLATINUM' THEN RETURN 15;
+        WHEN 'GOLD'     THEN RETURN 10;
+        WHEN 'SILVER'   THEN RETURN 5;
+        ELSE RETURN 0;
+    END CASE;
+END proposed_discount;
+
+
+------------------------------------------------------------------------
+-- COST ESTIMATION
+------------------------------------------------------------------------
+FUNCTION estimated_cost(p_reservation_id NUMBER) RETURN NUMBER IS
+    v_base   NUMBER := 0;
+    v_trans  NUMBER := 0;
+    v_accom  NUMBER := 0;
+    v_attr   NUMBER := 0;
+BEGIN
+    SELECT NVL(budget_amount,0)
+    INTO v_base
+    FROM reservations
+    WHERE reservation_id = p_reservation_id;
+
+    SELECT NVL(SUM(
+              CASE tr.transport_type
+                   WHEN 'FLIGHT' THEN 150
+                   WHEN 'TRAIN'  THEN 80
+                   WHEN 'COACH'  THEN 50
+                   ELSE 0
+              END
+           ),0)
+    INTO v_trans
+    FROM transport_reservations tr
+    WHERE tr.reservation_id = p_reservation_id;
+
+    SELECT NVL(SUM((a.check_out - a.check_in) * hr.base_price_per_night), 0)
+    INTO v_accom
+    FROM accommodation a
+    JOIN hotel_rooms hr ON hr.room_id = a.room_id
+    WHERE a.reservation_id = p_reservation_id;
+
+    SELECT NVL(SUM(attr.price_per_person * pc.cnt), 0)
+    INTO v_attr
+    FROM reservation_attractions ra
+    JOIN attractions attr ON attr.attraction_id = ra.attraction_id
+    JOIN (
+        SELECT reservation_id, COUNT(*) AS cnt
+        FROM participants
+        GROUP BY reservation_id
+    ) pc ON pc.reservation_id = ra.reservation_id
+    WHERE ra.reservation_id = p_reservation_id;
+
+    RETURN v_base + v_trans + v_accom + v_attr;
+END estimated_cost;
+
+
+------------------------------------------------------------------------
+-- TRIP VALUE INDEX
+------------------------------------------------------------------------
+FUNCTION trip_value_index(p_reservation_id NUMBER) RETURN NUMBER IS
+    v_cost NUMBER;
+    v_days NUMBER;
+BEGIN
+    v_cost := estimated_cost(p_reservation_id);
+
+    SELECT (date_to - date_from)
+    INTO v_days
+    FROM reservations
+    WHERE reservation_id = p_reservation_id;
+
+    IF v_days <= 0 THEN
+        RETURN NULL;
+    END IF;
+
+    RETURN ROUND(v_cost / v_days, 2);
+END trip_value_index;
+
+
+------------------------------------------------------------------------
+-- HOTEL SEARCH (REF CURSOR)
+------------------------------------------------------------------------
+FUNCTION search_hotels_rc(
+      p_city           VARCHAR2,
+      p_date_from      DATE,
+      p_date_to        DATE,
+      p_min_rating     NUMBER   DEFAULT NULL,
+      p_max_price      NUMBER   DEFAULT NULL
+) RETURN SYS_REFCURSOR IS
+    rc       SYS_REFCURSOR;
+    v_nights NUMBER;
+BEGIN
+    IF p_date_from IS NOT NULL AND p_date_to IS NOT NULL THEN
+        v_nights := GREATEST(TRUNC(p_date_to) - TRUNC(p_date_from), 1);
+    ELSE
+        v_nights := 1;
+    END IF;
+
+    OPEN rc FOR
+        SELECT
+            h.hotel_id,
+            h.hotel_name,
+            h.city,
+            h.rating,
+            r.room_id,
+            r.room_type,
+            r.max_persons,
+            r.base_price_per_night,
+            r.status,
+            v_nights AS nights,
+            r.base_price_per_night * v_nights AS est_total_price
+        FROM hotels h
+        JOIN hotel_rooms r ON r.hotel_id = h.hotel_id
+        WHERE (p_city IS NULL OR h.city = p_city)
+          AND r.status = 'AVAILABLE'
+          AND (p_min_rating IS NULL OR h.rating >= p_min_rating)
+          AND (p_max_price  IS NULL OR r.base_price_per_night <= p_max_price)
+        ORDER BY h.rating DESC,
+                 r.base_price_per_night,
+                 h.hotel_name;
+
+    RETURN rc;
+END search_hotels_rc;
+
+
+------------------------------------------------------------------------
+-- TRANSPORT SEARCH USING vw_transport_options
+------------------------------------------------------------------------
+FUNCTION search_transport_rc(
+      p_city_start     VARCHAR2,
+      p_city_target    VARCHAR2,
+      p_date_from      DATE,
+      p_date_to        DATE,
+      p_mode           VARCHAR2 DEFAULT NULL
+) RETURN SYS_REFCURSOR IS
+    rc SYS_REFCURSOR;
+BEGIN
+    OPEN rc FOR
+        SELECT *
+        FROM vw_transport_options v
+        WHERE (p_city_start  IS NULL OR v.city_start  = p_city_start)
+          AND (p_city_target IS NULL OR v.city_target = p_city_target)
+          AND (p_date_from   IS NULL OR v.depart_time >= p_date_from)
+          AND (p_date_to     IS NULL OR v.depart_time <= p_date_to)
+          AND (p_mode        IS NULL OR v.transport_mode = UPPER(p_mode))
+        ORDER BY v.depart_time;
+
+    RETURN rc;
+END search_transport_rc;
+
+
+------------------------------------------------------------------------
+-- TRANSPORT SIMULATION (FIXED BIND VARIABLES)
+------------------------------------------------------------------------
+FUNCTION simulate_transport_assignment(
+      p_reservation_id NUMBER,
+      p_city_start     VARCHAR2,
+      p_city_target    VARCHAR2,
+      p_date_from      DATE,
+      p_date_to        DATE
+) RETURN SYS_REFCURSOR IS
+
+    rc SYS_REFCURSOR;
+
+    CURSOR c_opts IS
+        SELECT
+            v.transport_mode,
+            v.transport_id,
+            v.depart_time,
+            v.col4 AS unit_price
+        FROM vw_transport_options v
+        WHERE (p_city_start  IS NULL OR v.city_start  = p_city_start)
+          AND (p_city_target IS NULL OR v.city_target = p_city_target)
+          AND (p_date_from   IS NULL OR v.depart_time >= p_date_from)
+          AND (p_date_to     IS NULL OR v.depart_time <= p_date_to)
+          AND v.status = 'ACTIVE';
+
+    v_people       NUMBER := 0;
+    v_best_total   NUMBER := NULL;
+    v_best_mode    VARCHAR2(20);
+    v_best_id      NUMBER;
+    v_best_depart  DATE;
+    v_total        NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_people
+    FROM participants
+    WHERE reservation_id = p_reservation_id;
+
+    IF v_people = 0 THEN
+        OPEN rc FOR SELECT * FROM vw_transport_options WHERE 1=0;
+        RETURN rc;
+    END IF;
+
+    -- wybór najtańszej opcji transportu
+    FOR r IN c_opts LOOP
+        v_total := r.unit_price * v_people;
+
+        IF v_best_total IS NULL OR v_total < v_best_total THEN
+            v_best_total  := v_total;
+            v_best_mode   := r.transport_mode;
+            v_best_id     := r.transport_id;
+            v_best_depart := r.depart_time;
+        END IF;
+    END LOOP;
+
+    IF v_best_total IS NULL THEN
+        OPEN rc FOR SELECT * FROM vw_transport_options WHERE 1=0;
+        RETURN rc;
+    END IF;
+
+    -- tu nie używamy USING, Oracle tego nie akceptuje w ref cursor
+    OPEN rc FOR
+        SELECT
+            v.transport_mode,
+            v.transport_id,
+            v.city_start,
+            v.city_target,
+            v.depart_time,
+            v.col1,
+            v.col2,
+            v.col3,
+            v.col4,
+            v.col5,
+            v.col6,
+            v.status,
+            v.extra,
+            (SELECT v_best_total FROM dual) AS total_price_for_group,
+            (SELECT v_people     FROM dual) AS passengers_count
+        FROM vw_transport_options v
+        WHERE v.transport_mode = v_best_mode
+          AND v.transport_id   = v_best_id;
+
+    RETURN rc;
+END simulate_transport_assignment;
+
 
 END travel_agency_intelligence;
 /
