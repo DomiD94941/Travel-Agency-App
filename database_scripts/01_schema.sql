@@ -303,4 +303,13 @@ CREATE TABLE trip_package_transport_modes (
     transport_mode VARCHAR2(50)
 );
 
+CREATE TABLE transport_seats (
+    seat_id        NUMBER PRIMARY KEY,
+    transport_id   NUMBER NOT NULL,
+    transport_type VARCHAR2(20) NOT NULL,
+    seat_no        VARCHAR2(20) NOT NULL,
+    service_class  VARCHAR2(20) NOT NULL,
+    is_available   CHAR(1) DEFAULT 'Y'
+);
 
+CREATE SEQUENCE seq_transport_seats START WITH 1 INCREMENT BY 1;

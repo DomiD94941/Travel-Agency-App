@@ -110,5 +110,3 @@ VALUES ('Berlin','Paris',SYSDATE+5, 55,55,40,'ACTIVE');
 
 INSERT INTO transport_coaches
 VALUES (seq_transport_coaches.NEXTVAL, 'Berlin','Paris',SYSDATE+5,55,55,40,'ACTIVE');
-
-COMMIT;
